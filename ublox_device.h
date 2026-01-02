@@ -7,8 +7,15 @@
 #include <furi.h>
 #include <furi_hal.h>
 
-#define UBLOX_I2C_ADDRESS 0x42
-#define I2C_TIMEOUT_MS 20
+// I2C address is no longer needed for UART
+// #define UBLOX_I2C_ADDRESS 0x42
+// I2C timeout is no longer needed for UART transfer function
+// #define I2C_TIMEOUT_MS 20
+
+// Define the UART channel to use (e.g., FuriHalUartIdUSART1 or FuriHalUartIdLPUART1)
+#define UBLOX_UART_CHANNEL FuriHalUartIdUSART1
+// Define a timeout for receiving data over UART
+#define UART_TIMEOUT_MS 50
 
 #define UBX_NAV_CLASS 0x01
 #define UBX_RXM_CLASS 0x02
@@ -152,4 +159,52 @@ UbloxFrame* ublox_bytes_to_frame(UbloxMessage* message);
 void ublox_message_free(UbloxMessage* message);
 void ublox_frame_free(UbloxFrame* frame);
 
-UbloxMessage* ublox_i2c_transfer(UbloxMessage* message_tx, uint8_t read_length);
+/* 
+ * The following I2C function has been replaced by a UART version below.
+ */
+// UbloxMessage* ublox_i2c_transfer(UbloxMessage* message_tx, uint8_t read_length);
+
+
+
+/**
+ * @brief Sends a u-blox message via UART and waits for a response.
+ *
+ * This function assumes UART has been initialized and configured prior to calling.
+ *
+ * @param message_tx The message to send to the u-blox module.
+ * @param read_length The expected length of the response message.
+ * @return UbloxMessage* The received message, or NULL if an error occurred or no response within timeout.
+ */
+UbloxMessage* ublox_uart_transfer(UbloxMessage* message_tx, uint8_t read_length) {
+    // 1. Send the message over UART
+    if (message_tx != NULL && message_tx->message != NULL && message_tx->length > 0) {
+        furi_hal_uart_tx(UBLOX_UART_CHANNEL, message_tx->message, message_tx->length);
+    }
+
+    // 2. Prepare buffer for response
+    if (read_length == 0) {
+        return NULL; // Not expecting a response
+    }
+    
+    UbloxMessage* message_rx = malloc(sizeof(UbloxMessage));
+    if (message_rx == NULL) {
+        return NULL;
+    }
+
+    message_rx->message = malloc(read_length);
+    if (message_rx->message == NULL) {
+        free(message_rx);
+        return NULL;
+    }
+    message_rx->length = read_length;
+
+    // 3. Read the response from UART
+    // furi_hal_uart_rx returns true if all bytes were received within the timeout
+    if (furi_hal_uart_rx(UBLOX_UART_CHANNEL, message_rx->message, read_length, UART_TIMEOUT_MS)) {
+        return message_rx;
+    } else {
+        // Timeout or error receiving data
+        ublox_message_free(message_rx);
+        return NULL;
+    }
+}
