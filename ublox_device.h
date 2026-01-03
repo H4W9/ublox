@@ -6,6 +6,8 @@
 
 #include <furi.h>
 #include <furi_hal.h>
+#include <furi_hal_uart.h>
+#include <string.h>
 
 // I2C address is no longer needed for UART
 // #define UBLOX_I2C_ADDRESS 0x42
